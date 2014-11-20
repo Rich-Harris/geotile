@@ -1,7 +1,18 @@
 {
-	"name": "geotile",
-	"description": "Split GeoJSON data up into vector tiles",
-	"version": "0.1.0",
-	"license": "MIT",
-	"repository": "https://github.com/Rich-Harris/geotile"
+  "name": "geotile",
+  "description": "Split GeoJSON data up into vector tiles",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": "https://github.com/Rich-Harris/geotile",
+  "main": "geotile.js",
+  "devDependencies": {
+    "gobble": "^0.6.10",
+    "gobble-es6-transpiler": "^0.1.0",
+    "gobble-esperanto-bundle": "^0.1.0",
+    "sander": "^0.2.1"
+  },
+  "scripts": {
+  	"build": "set -e; mocha; cp test/lib/geotile.js geotile.js",
+  	"prepublish": "npm run build"
+  }
 }

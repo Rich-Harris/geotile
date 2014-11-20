@@ -1,0 +1,13 @@
+{
+	"type": "Feature",
+	"properties": {
+		"name" : "Parallelogramistan"
+	},
+	"geometry": {
+		"type": "Polygon",
+		"coordinates": [
+			[ [ 8, 5 ], [ 2, 15 ], [ 12, 15 ], [ 18, 5 ], [ 8, 5 ] ]
+		]
+	},
+	"extra": "data"
+}
