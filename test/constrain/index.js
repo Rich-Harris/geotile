@@ -5,9 +5,10 @@ var assert = require( 'assert' ),
 
 module.exports = function () {
 	describe( 'geotile( data ).constrain()', function () {
-		var polygon, pointA, pointB, line;
+		var polygonA, polygonB, pointA, pointB, line;
 
-		polygon = require( '../samples/polygon.json' );
+		polygonA = require( '../samples/polygonA.json' );
+		polygonB = require( '../samples/polygonB.json' );
 		pointA = require( '../samples/pointA.json' );
 		pointB = require( '../samples/pointB.json' );
 		line = require( '../samples/line.json' );
@@ -19,9 +20,9 @@ module.exports = function () {
 		});
 
 		it( 'constrains a Polygon', function () {
-			var source, region;
+			var source, region, expected;
 
-			source = geotile( polygon );
+			source = geotile( polygonA );
 
 			region = source.constrain({
 				north: 10,
@@ -56,8 +57,40 @@ module.exports = function () {
 			compareGeometry( region.features[0].geometry, expected );
 		});
 
+		it( 'constrains a Polygon that intersects the tile multiple times', function () {
+			var source, region, expected;
+
+			source = geotile( polygonB );
+
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			expected = {
+				type: 'MultiPolygon',
+				coordinates: [
+					[
+						[ [ 2, 6 ], [ 2, 10 ], [ 4, 10 ], [ 4, 6 ], [ 2, 6 ] ]
+					],
+
+					[
+						[ [ 6, 10 ], [ 8, 10 ], [ 8, 8 ], [ 10, 8 ], [ 10, 6 ], [ 6, 6 ], [6, 10 ] ]
+					],
+
+					[
+						[ [ 6, 4 ], [ 10, 4 ], [ 10, 2 ], [ 6, 2 ], [ 6, 4 ] ]
+					]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
 		it( 'constrains a LineString', function () {
-			var source, region;
+			var source, region, expected;
 
 			source = geotile( line );
 
@@ -98,7 +131,7 @@ module.exports = function () {
 		it( 'retains additional data and properties', function () {
 			var source, region;
 
-			source = geotile( polygon );
+			source = geotile( polygonA );
 			region = source.constrain({
 				north: 10,
 				east: 10,

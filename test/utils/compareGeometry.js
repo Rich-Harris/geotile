@@ -30,6 +30,17 @@ var comparators = {
 		assert.deepEqual( expected, actual );
 	},
 
+	MultiPolygon: function ( actual, expected ) {
+		var i = expected.length;
+
+		assert.equal( actual.length, i );
+
+		cycleMultiPolygon( actual );
+		cycleMultiPolygon( expected );
+
+		assert.deepEqual( actual, expected );
+	},
+
 	MultiLineString: function ( actual, expected ) {
 		var i = expected.length;
 
@@ -59,4 +70,43 @@ module.exports = function compareGeometry ( actual, expected ) {
 
 function comparePoints ( a, b ) {
 	return a[0] === b[0] && a[1] === b[1];
+}
+
+function cycleMultiPolygon ( multiPolygon ) {
+	multiPolygon.forEach( cyclePolygon );
+
+	multiPolygon.sort( function ( a, b ) {
+		return ( a[0][0][1] - b[0][0][1] ) || ( a[0][0][0] - b[0][0][0] );
+	});
+}
+
+function cyclePolygon ( polygon ) {
+	polygon.forEach( cycleRing );
+}
+
+function cycleRing ( ring ) {
+	var north = -Infinity, east = -Infinity, i, index;
+
+	assert.deepEqual( ring[0], ring.pop() );
+
+	// find north-easternmost point, make that the first item
+	i = ring.length;
+	while ( i-- ) {
+		point = ring[i];
+
+		if ( point[1] > north ) {
+			north = point[1];
+			east = point[0];
+			index = i;
+		}
+
+		else if ( point[1] === north && point[0] > east ) {
+			east = point[0];
+			index = i;
+		}
+	}
+
+	if ( index ) {
+		ring.splice.apply( ring, [ 0, 0 ].concat( ring.splice( index ) ) );
+	}
 }

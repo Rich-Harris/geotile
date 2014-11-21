@@ -4,9 +4,9 @@ var assert = require( 'assert' ),
 
 module.exports = function () {
 	describe( 'geotile()', function () {
-		var polygon, pointA, pointB;
+		var polygonA, pointA, pointB;
 
-		polygon = require( '../samples/polygon.json' );
+		polygonA = require( '../samples/polygonA.json' );
 		pointA = require( '../samples/pointA.json' );
 		pointB = require( '../samples/pointB.json' );
 
@@ -20,23 +20,23 @@ module.exports = function () {
 			var source;
 
 			beforeEach( function () {
-				source = geotile( polygon );
+				source = geotile( polygonA );
 			});
 
 			describe( 'source.toJSON()', function () {
 				it( 'returns a clone of the original data', function () {
 					var result = source.toJSON();
 
-					assert.notEqual( polygon, result );
-					assert.deepEqual( polygon.type, result.type );
-					assert.deepEqual( polygon.properties, result.properties );
-					assert.deepEqual( polygon.geometry, result.geometry );
-					assert.deepEqual( polygon.extra, result.extra );
+					assert.notEqual( polygonA, result );
+					assert.deepEqual( polygonA.type, result.type );
+					assert.deepEqual( polygonA.properties, result.properties );
+					assert.deepEqual( polygonA.geometry, result.geometry );
+					assert.deepEqual( polygonA.extra, result.extra );
 				});
 
 				it( 'includes bounding box data', function () {
 					var bbox = source.toJSON().bbox,
-						ring = polygon.geometry.coordinates[0];
+						ring = polygonA.geometry.coordinates[0];
 
 					assert.deepEqual( bbox, [ 2, 5, 18, 15 ]);
 				});
@@ -47,7 +47,7 @@ module.exports = function () {
 			var source;
 
 			beforeEach( function () {
-				source = geotile([ polygon, pointA, pointB ]);
+				source = geotile([ polygonA, pointA, pointB ]);
 			});
 
 			describe( 'source.toJSON()', function () {
@@ -59,7 +59,7 @@ module.exports = function () {
 
 				it( 'includes bounding box data', function () {
 					var bbox = source.toJSON().bbox,
-						ring = polygon.geometry.coordinates[0];
+						ring = polygonA.geometry.coordinates[0];
 
 					assert.deepEqual( bbox, [ 2, 5, 19, 19 ]);
 				});

@@ -32,6 +32,7 @@
 				bbox[3] = Math.max( bbox[3], childBbox[3] );
 			});
 	
+			console.log( 'bbox', bbox );
 			return feature.bbox = bbox;
 		},
 	
@@ -155,6 +156,360 @@
 	}
 	var deepClone__default = deepClone__deepClone;
 
+	function constrainLine__constrainLine ( tile, line ) {
+		var allLines = [],
+			currentLine = [],
+			lastPoint,
+			lastPointWasContained;
+	
+		line.forEach( function ( point ) {
+			var pointIsContained;
+	
+			pointIsContained = tile.contains( point );
+	
+			if ( pointIsContained ) {
+				if ( !!lastPoint && !lastPointWasContained ) {
+					currentLine.push( tile._findIntersection( point, lastPoint ).point );
+				}
+	
+				currentLine.push( point );
+			}
+	
+			else {
+				if ( !!lastPoint && lastPointWasContained ) {
+					currentLine.push( tile._findIntersection( point, lastPoint ).point );
+				}
+	
+				if ( currentLine.length ) {
+					allLines.push( currentLine );
+					currentLine = [];
+				}
+			}
+	
+			lastPoint = point;
+			lastPointWasContained = pointIsContained;
+		});
+	
+		if ( currentLine.length ) {
+			allLines.push( currentLine );
+		}
+	
+		if ( allLines.length ) {
+			return allLines;
+		}
+	}
+	var constrainLine__default = constrainLine__constrainLine;
+
+	var constrainPolygon__remaining = 20;
+	
+	var constrainPolygon__Arc = function () {
+		this.points = [];
+		this.holes = [];
+		this.entry = this.exit = null;
+	};
+	
+	constrainPolygon__Arc.prototype = {
+		addHole: function ( hole ) {
+			this.holes.push( hole );
+		},
+	
+		addPoint: function ( point ) {
+			this.points.push( point );
+		},
+	
+		containsHole: function ( hole ) {
+			throw new Error( 'TODO' );
+		},
+	
+		entersAt: function ( intersection ) {
+			if ( this.entry ) throw new Error( 'huh?' );
+			this.entry = intersection;
+			this.points.push( intersection.point );
+		},
+	
+		exitsAt: function ( intersection ) {
+			this.exit = intersection;
+			this.points.push( intersection.point );
+		},
+	
+		firstPoint: function () {
+			return this.points[0];
+		},
+	
+		isClosed: function () {
+			return constrainPolygon__pointsCoincide( this.points[0], this.points[ this.points.length - 1 ] );
+		},
+	
+		hasPoints: function () {
+			return !!this.points.length;
+		},
+	
+		join: function ( precedingArc ) {
+			this.entry = precedingArc.entry;
+			this.points = precedingArc.points.concat( this.points );
+		},
+	
+		lastPoint: function () {
+			return this.points[ this.points.length - 1 ];
+		},
+	
+		toPolygon: function () {
+			var polygon = [ this.points ];
+	
+			this.holes.forEach( function ( hole ) {
+				polygon.push( hole.points );
+			});
+	
+			return polygon;
+		}
+	};
+	
+	function constrainPolygon__constrainPolygon ( tile, polygon ) {
+		var outerRings;
+	
+		outerRings = constrainPolygon__constrainRing( tile, polygon[0], false );
+	
+		if ( !outerRings ) {
+			return;
+		}
+	
+		polygon.slice( 1 ).forEach( function ( hole ) {
+			var constrainedHoles, i;
+	
+			constrainedHoles = constrainPolygon__constrainRing( tile, hole, true );
+	
+			if ( constrainedHoles ) {
+				constrainedHoles.forEach( findOuterRing );
+			}
+	
+			function findOuterRing ( hole ) {
+				var i = outerRings.length;
+				while ( i-- ) {
+					if ( outerRings[i].containsHole( hole ) ) {
+						outerRings[i].addHole( hole );
+						break;
+					}
+				}
+			}
+		});
+	
+		return outerRings.map( function ( ring ) {
+			return ring.toPolygon();
+		});
+	}
+	var constrainPolygon__default = constrainPolygon__constrainPolygon;
+	
+	function constrainPolygon__constrainRing ( tile, ring, isHole ) {
+		var arcs = [],
+			rings = [],
+			arc = new constrainPolygon__Arc(),
+			lastPoint,
+			lastPointWasContained,
+			arcByStart,
+			arcByEnd,
+			arcA,
+			arcB,
+			firstArc,
+			lastArc,
+			i,
+			candidates,
+			candidate,
+			corner,
+			closestEntry,
+			index,
+			direction;
+	
+		// Find all arcs inside the tile
+		ring.forEach( function ( point ) {
+			var pointIsContained, intersection;
+	
+			pointIsContained = tile.contains( point );
+	
+			if ( pointIsContained ) {
+				if ( !!lastPoint && !lastPointWasContained ) {
+					intersection = tile._findIntersection( point, lastPoint );
+					arc.entersAt( intersection );
+				}
+	
+				arc.addPoint( point );
+			}
+	
+			else {
+				if ( !!lastPoint && lastPointWasContained ) {
+					arc.exitsAt( tile._findIntersection( point, lastPoint ) );
+	
+					if ( arc.hasPoints() ) {
+						arcs.push( arc );
+						arc = new constrainPolygon__Arc();
+					}
+				}
+			}
+	
+			lastPoint = point;
+			lastPointWasContained = pointIsContained;
+		});
+	
+		if ( arc.hasPoints() ) {
+			arcs.push( arc );
+		}
+	
+		if ( !arcs.length ) {
+			return;
+		}
+	
+		firstArc = arcs[0];
+		lastArc = arcs[ arcs.length - 1 ];
+	
+		// join first and last arc, if applicable
+		if ( constrainPolygon__pointsCoincide( firstArc.firstPoint(), lastArc.lastPoint() ) ) {
+			lastArc.points.pop();
+			firstArc.join( lastArc );
+			arcs.pop();
+		}
+	
+		// take each arc in turn, and find the entry point closest to
+		// the exit point, following the winding order of the polygon
+		// as a whole
+		i = arcs.length;
+		while ( i-- ) {
+			connectArc( arcs[i] );
+			arcs.pop();
+		}
+	
+		function connectArc ( arc ) {
+			var index,
+				arcPosition,
+				candidatePosition,
+				d,
+				min = Infinity,
+				candidate,
+				direction,
+				closestEntry,
+				i,
+				edge;
+	
+			while ( true ) {
+				edge = arc.exit.edge;
+	
+				index = ( edge === 'north' || edge === 'south' ) ? 0 : 1;
+				direction = ( edge === 'west' || edge === 'north' ) ? 1 : -1;
+	
+				if ( isHole ) {
+					direction *= -1;
+				}
+	
+				arcPosition = arc.exit.point[ index ];
+	
+				i = arcs.length;
+				while ( i-- ) {
+					candidate = arcs[i];
+	
+					if ( candidate.entry.edge === edge ) {
+						candidatePosition = candidate.entry.point[ index ];
+						d = direction * ( candidatePosition - arcPosition );
+	
+						if ( d > 0 && d < min ) {
+							closestEntry = candidate;
+							break;
+						}
+					}
+				}
+	
+				if ( closestEntry ) {
+					if ( closestEntry === arc ) {
+						arc.addPoint( closestEntry.entry.point );
+						rings.push( arc );
+					} else {
+						closestEntry.join( arc );
+					}
+	
+					break;
+				}
+	
+				// no candidate - need to add a corner
+				corner = constrainPolygon__getCorner( tile, edge, isHole );
+				arc.exitsAt( corner );
+			}
+		}
+	
+	
+		function getCandidates ( arc ) {
+			var edge = arc.exit.edge,
+				index = edge === 'west' || edge === 'east' ? 0 : 1,
+				direction = edge === 'north' || edge === 'west' ? 1 : -1;
+	
+			if ( isHole ) {
+				direction *= -1;
+			}
+	
+			return arcs.filter( function(candidate ) {
+				return (
+					candidate.entry.edge === edge &&
+					direction * ( candidate.entry.point[ index ] - arc.exit.point[ index ] ) < 0
+				);
+			}).sort( function ( a, b ) {
+				return direction * ( a[ index ] - b[ index ] );
+			});
+		}
+	
+		return rings.length ? rings : null;
+	}
+	
+	function constrainPolygon__getPoints ( arc ) {
+		return arc.points;
+	}
+	
+	function constrainPolygon__hash ( point ) {
+		return point[0] + '_' + point[1];
+	}
+	
+	function constrainPolygon__pointsCoincide ( a, b ) {
+		return a && b && a[0] === b[0] && a[1] === b[1];
+	}
+	
+	function constrainPolygon__getCorner ( tile, edge, isHole ) {
+		var corner, newEdge;
+	
+		switch ( edge ) {
+			case 'north':
+				newEdge = isHole ? 'west' : 'east';
+				corner = {
+					edge: newEdge,
+					point: [ tile[ newEdge ], tile.north ]
+				};
+				break;
+	
+			case 'south':
+				newEdge = isHole ? 'east' : 'west';
+				corner = {
+					edge: newEdge,
+					point: [ tile[ newEdge ], tile.south ]
+				};
+				break;
+	
+			case 'east':
+				newEdge = isHole ? 'north' : 'south';
+				corner = {
+					edge: newEdge,
+					point: [  tile.east, tile[ newEdge ] ]
+				};
+				break;
+	
+			case 'west':
+				newEdge = isHole ? 'south' : 'north';
+				corner = {
+					edge: newEdge,
+					point: [  tile.west, tile[ newEdge ] ]
+				};
+				break;
+	
+			default:
+				throw new Error( 'lolwut?' );
+		}
+	
+		return corner;
+	}
+
 	var Tile__Tile = function ( options ) {
 		this.north = options.north;
 		this.east = options.east;
@@ -181,6 +536,13 @@
 					this$0.addFeature( f );
 				});
 	
+				return;
+			}
+	
+			// if feature is fully enclosed, we can take a shortcut
+			if ( feature.bbox[0] > this.west && feature.bbox[2] < this.east &&
+				 feature.bbox[1] > this.south && feature.bbox[3] < this.north ) {
+				this.features.push( deepClone__default( feature ) );
 				return;
 			}
 	
@@ -234,33 +596,51 @@
 		},
 	
 		_addMultiLineString: function ( feature ) {
-			var self = this, lines, clonedFeature;
+			var self = this, allLines = [], clonedFeature;
 	
-			lines = feature.geometry.coordinates.map( function ( line ) {
-				return Tile__constrainLine( self, line );
-			}).filter( Boolean );
+			feature.geometry.coordinates.forEach( function ( line ) {
+				var lines = constrainLine__default( self, line );
 	
-			if ( !lines.length ) {
+				if ( lines ) {
+					allLines.push.apply( allLines, lines );
+				}
+			});
+	
+			if ( !allLines.length ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = lines;
+	
+			if ( allLines.length === 1 ) {
+				clonedFeature.geometry.type = 'LineString';
+				clonedFeature.geometry.coordinates = allLines[0];
+			} else {
+				clonedFeature.geometry.coordinates = allLines;
+			}
+	
 	
 			this.features.push( clonedFeature );
 		},
 	
 		_addLineString: function ( feature ) {
-			var self = this, line, clonedFeature;
+			var self = this, lines, clonedFeature;
 	
-			line = Tile__constrainLine( this, feature.geometry.coordinates );
+			lines = constrainLine__default( this, feature.geometry.coordinates );
 	
-			if ( !line ) {
+			if ( !lines ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = line;
+	
+			if ( lines.length === 1 ) {
+				clonedFeature.geometry.coordinates = lines[0];
+			} else {
+				clonedFeature.geometry.type = 'MultiLineString';
+				clonedFeature.geometry.coordinates = lines;
+			}
+	
 	
 			this.features.push( clonedFeature );
 		},
@@ -269,7 +649,7 @@
 			var self = this, multiPolygon, clonedFeature;
 	
 			multiPolygon = feature.geometry.coordinates.map( function ( polygon ) {
-				return Tile__constrainPolygon( self, polygon );
+				return constrainPolygon__default( self, polygon );
 			}).filter( Boolean );
 	
 			if ( !multiPolygon.length ) {
@@ -283,16 +663,22 @@
 		},
 	
 		_addPolygon: function ( feature ) {
-			var polygon, clonedFeature;
+			var polygons, clonedFeature;
 	
-			polygon = Tile__constrainPolygon( this, feature.geometry.coordinates );
+			polygons = constrainPolygon__default( this, feature.geometry.coordinates );
 	
-			if ( !polygon ) {
+			if ( !polygons ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = polygon;
+	
+			if ( polygons.length === 1 ) {
+				clonedFeature.geometry.coordinates = polygons[0];
+			} else {
+				clonedFeature.geometry.type = 'MultiPolygon';
+				clonedFeature.geometry.coordinates = polygons;
+			}
 	
 			this.features.push( clonedFeature );
 		},
@@ -309,10 +695,7 @@
 				if ( northernCrossingEasting >= this.west && northernCrossingEasting <= this.east ) {
 					//console.log( 'crosses northern boundary (%s) at', this.north, northernCrossingEasting, a, b );
 					return {
-						edge: {
-							type: 'northing',
-							value: this.north
-						},
+						edge: 'north',
 						point: [ northernCrossingEasting, this.north ]
 					};
 				}
@@ -324,10 +707,7 @@
 				if ( southernCrossingEasting >= this.west && southernCrossingEasting <= this.east ) {
 					//console.log( 'crosses southern boundary (%s) at', this.north, southernCrossingEasting, a, b );
 					return {
-						edge: {
-							type: 'northing',
-							value: this.south
-						},
+						edge: 'south',
 						point: [ southernCrossingEasting, this.south ]
 					};
 				}
@@ -339,10 +719,7 @@
 				if ( westernCrossingNorthing >= this.south && westernCrossingNorthing <= this.north ) {
 					//console.log( 'crosses western boundary (%s) at', this.west, westernCrossingNorthing, a, b );
 					return {
-						edge: {
-							type: 'easting',
-							value: this.west
-						},
+						edge: 'west',
 						point: [ this.west, westernCrossingNorthing ]
 					};
 				}
@@ -354,239 +731,17 @@
 				if ( easternCrossingNorthing >= this.south && easternCrossingNorthing <= this.north ) {
 					//console.log( 'crosses eastern boundary (%s) at', this.east, easternCrossingNorthing, a, b );
 					return {
-						edge: {
-							type: 'easting',
-							value: this.east
-						},
+						edge: 'east',
 						point: [ this.east, easternCrossingNorthing ]
 					};
 				}
-			}
-		},
-	
-		_add: function ( target, coords, isHole ) {
-			var self = this,
-				result = [],
-				last,
-				west = ( ( this.west + 360 ) % 360 ),
-				east = ( this.east + 360 ) % 360;
-	
-			coords.forEach( function ( point ) {
-				var clamped, backOne, backTwo;
-	
-				clamped = Tile__clamp( point, self, west, east );
-	
-				backOne = result[ result.length - 1 ];
-				backTwo = result[ result.length - 2 ];
-	
-				if ( backOne && ( clamped[0] === backOne[0] && clamped[1] === backOne[1] ) ) {
-					return;
-				}
-	
-				// are the last three points on the same edge? if so, discard the middle
-				if ( ( !!backOne && !!backTwo ) && ( ( clamped[0] === backOne[0] && backOne[0] === backTwo[0] ) || ( clamped[1] === backOne[1] && backOne[1] === backTwo[1] ) ) ) {
-					result.pop();
-				}
-	
-				// is THIS the middle of a straight line?
-				if ( backOne && backTwo && result[0] && ( ( clamped[0] === backOne[0] && clamped[0] === result[0][0] ) || ( clamped[1] === backOne[1] && clamped[1] === result[0][1] ) ) ) {
-					return;
-				}
-	
-				result.push( clamped );
-			});
-	
-			if ( result.length > 2 ) {
-				last = result[ result.length - 1 ];
-				if ( ( result[0][0] === result[1][0] && result[1][0] === last[0] ) || ( result[0][1] === result[1][1] && result[1][1] === last[1] ) ) {
-					result.shift();
-				}
-	
-				// if the result is clockwise, and it's an outer ring, great. otherwise
-				// we've taken geometry from the wrong side of the planet
-				if ( Tile__isClockwise( result ) ) {
-					if ( isHole ) return;
-				} else if ( !isHole ) {
-					return;
-				}
-	
-				result.push( result[0] );
-				target.push( result );
 			}
 		}
 	};
 	
 	module.exports = Tile__Tile;
 	
-	function Tile__clamp ( point, tile, west, east ) {
-		var lat, lon, tileLon, dLon, width = tile.width;
 	
-		lat = Math.max( tile.south, Math.min( tile.north, point[1] ) );
-	
-		dLon = ( point[0] - tile.lon );
-	
-		while ( dLon < -180 ) {
-			dLon += 360;
-		}
-	
-		while ( dLon > 180 ) {
-			dLon -= 360;
-		}
-	
-		if ( point[0] >= tile.west && point[0] <= tile.east ) {
-			lon = point[0];
-		} else if ( dLon < -width / 2 ) {
-			//console.log( '%s is west of (%s-%s)', point[0], tile.west, tile.east );
-			lon = tile.west;
-		} else if ( dLon > width / 2 ) {
-			//console.log( '%s is east of (%s-%s)', point[0], tile.west, tile.east );
-			lon = tile.east;
-		}
-	
-		return [ lon, lat ];
-	}
-	
-	
-	function Tile__isClockwise ( ring ) {
-		var total = 0;
-	
-		ring.forEach( function ( point, i ) {
-			var nextPoint = ring[ i + 1 ] || ring[0];
-	
-			total += ( nextPoint[0] - point[0] ) * ( nextPoint[1] + point[1] );
-		});
-	
-		return total > 0;
-	}
-	
-	function Tile__constrainPolygon ( tile, coordinates ) {
-		var result = [], outerRing;
-	
-		outerRing = Tile__constrainRing( tile, coordinates[0], false );
-	
-		if ( !outerRing ) {
-			return;
-		}
-	
-		result = [ outerRing ];
-	
-		coordinates.slice( 1 ).forEach( function ( hole ) {
-			var constrainedHole = Tile__constrainRing( tile, hole, true );
-	
-			if ( constrainedHole ) {
-				result.push( constrainedHole );
-			}
-		});
-	
-		return result;
-	}
-	
-	function Tile__constrainRing ( tile, ring, isHole ) {
-		var result = [],
-			lastPoint,
-			lastPointWasContained,
-			west = ( ( tile.west + 360 ) % 360 ),
-			east = ( tile.east + 360 ) % 360;
-	
-		ring.forEach( function ( point ) {
-			var pointIsContained, intersection, clamped, backOne, backTwo;
-	
-			pointIsContained = tile.contains( point );
-	
-			if ( !!lastPoint && ( ( pointIsContained && !lastPointWasContained ) || ( !pointIsContained && lastPointWasContained ) ) ) {
-				intersection = tile._findIntersection( point, lastPoint );
-				addPoint( intersection.point );
-			}
-	
-			lastPoint = point;
-			lastPointWasContained = pointIsContained;
-	
-			clamped = Tile__clamp( point, tile, west, east );
-			addPoint( clamped );
-		});
-	
-		function addPoint ( clamped ) {
-			var backOne, backTwo;
-	
-			backOne = result[ result.length - 1 ];
-			backTwo = result[ result.length - 2 ];
-	
-			if ( Tile__pointsCoincide( clamped, backOne ) ) {
-				return;
-			}
-	
-			// are the last three points on the same edge? if so, discard the middle
-			if ( ( !!backOne && !!backTwo ) && ( ( clamped[0] === backOne[0] && backOne[0] === backTwo[0] ) || ( clamped[1] === backOne[1] && backOne[1] === backTwo[1] ) ) ) {
-				result.pop();
-			}
-	
-			// is THIS the middle of a straight line?
-			/*if ( backOne && backTwo && result[0] && ( ( clamped[0] === backOne[0] && clamped[0] === result[0][0] ) || ( clamped[1] === backOne[1] && clamped[1] === result[0][1] ) ) ) {
-				return;
-			}*/
-	
-			result.push( clamped );
-		}
-	
-		if ( result.length > 2 ) {
-			lastPoint = result[ result.length - 1 ];
-			if ( ( result[0][0] === result[1][0] && result[1][0] === lastPoint[0] ) || ( result[0][1] === result[1][1] && result[1][1] === lastPoint[1] ) ) {
-				result.shift();
-			}
-	
-			// if the result is clockwise, and it's an outer ring, great. otherwise
-			// we've taken geometry from the wrong side of the planet
-			if ( Tile__isClockwise( result ) ) {
-				if ( isHole ) return;
-			} else if ( !isHole ) {
-				return;
-			}
-	
-			// Close the path
-			if ( !Tile__pointsCoincide( result[ result.length - 1 ], result[0] ) ) {
-				result.push( result[0] );
-			}
-	
-			return result;
-		}
-	}
-	
-	function Tile__constrainLine ( tile, line ) {
-		var result = [],
-			lastPoint,
-			lastPointWasContained;
-	
-		line.forEach( function ( point ) {
-			var pointIsContained;
-	
-			pointIsContained = tile.contains( point );
-	
-			if ( pointIsContained ) {
-				if ( !!lastPoint && !lastPointWasContained ) {
-					result.push( tile._findIntersection( point, lastPoint ).point );
-				}
-	
-				result.push( point );
-			}
-	
-			else {
-				if ( !!lastPoint && lastPointWasContained ) {
-					result.push( tile._findIntersection( point, lastPoint ).point );
-				}
-			}
-	
-			lastPoint = point;
-			lastPointWasContained = pointIsContained;
-		});
-	
-		if ( result.length ) {
-			return result;
-		}
-	}
-	
-	function Tile__pointsCoincide ( a, b ) {
-		return a && b && a[0] === b[0] && a[1] === b[1];
-	}
 	
 	var Tile__default = Tile__Tile;
 
