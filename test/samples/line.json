@@ -1,0 +1,9 @@
+{
+	"type": "Feature",
+	"geometry": {
+		"type": "LineString",
+		"coordinates": [
+			[ 5, 5 ], [ 15, 5 ], [ 15, 15 ], [ 5, 15 ], [ 5, 8 ]
+		]
+	}
+}

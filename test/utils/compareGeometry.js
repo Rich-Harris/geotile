@@ -11,16 +11,12 @@ var comparators = {
 		}
 	},
 
-	ring: function ( actual, expected ) {
-		var i;
+	LineString: function ( actual, expected ) {
+		var i = expected.length;
 
-		assert.equal( expected.length, actual.length );
-
-		assert.deepEqual( expected[0], expected.pop() );
-		assert.deepEqual( actual[0], actual.pop() );
+		assert.equal( actual.length, i );
 
 		// find index of `expected` that corresponds to `actual[0]`
-		i = expected.length;
 		while ( i-- ) {
 			if ( comparePoints( expected[i], actual[0] ) ) {
 				break;
@@ -32,6 +28,27 @@ var comparators = {
 		}
 
 		assert.deepEqual( expected, actual );
+	},
+
+	MultiLineString: function ( actual, expected ) {
+		var i = expected.length;
+
+		assert.equal( actual.length, i );
+
+		while ( i-- ) {
+			comparators.LineString( actual[i], expected[i] );
+		}
+	},
+
+	ring: function ( actual, expected ) {
+		var i;
+
+		assert.equal( expected.length, actual.length );
+
+		assert.deepEqual( expected[0], expected.pop() );
+		assert.deepEqual( actual[0], actual.pop() );
+
+		comparators.LineString( actual, expected );
 	}
 };
 

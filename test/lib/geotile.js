@@ -234,33 +234,51 @@
 		},
 	
 		_addMultiLineString: function ( feature ) {
-			var self = this, lines, clonedFeature;
+			var self = this, allLines = [], clonedFeature;
 	
-			lines = feature.geometry.coordinates.map( function ( line ) {
-				return Tile__constrainLine( self, line );
+			feature.geometry.coordinates.forEach( function ( line ) {
+				var lines = Tile__constrainLine( self, line );
+	
+				if ( lines ) {
+					allLines.push.apply( allLines, lines );
+				}
 			}).filter( Boolean );
 	
-			if ( !lines.length ) {
+			if ( !allLines.length ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = lines;
+	
+			if ( allLines.length === 1 ) {
+				clonedFeature.geometry.type = 'LineString';
+				clonedFeature.geometry.coordinates = allLines[0];
+			} else {
+				clonedFeature.geometry.coordinates = allLines;
+			}
+	
 	
 			this.features.push( clonedFeature );
 		},
 	
 		_addLineString: function ( feature ) {
-			var self = this, line, clonedFeature;
+			var self = this, lines, clonedFeature;
 	
-			line = Tile__constrainLine( this, feature.geometry.coordinates );
+			lines = Tile__constrainLine( this, feature.geometry.coordinates );
 	
-			if ( !line ) {
+			if ( !lines ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = line;
+	
+			if ( lines.length === 1 ) {
+				clonedFeature.geometry.coordinates = lines[0];
+			} else {
+				clonedFeature.geometry.type = 'MultiLineString';
+				clonedFeature.geometry.coordinates = lines;
+			}
+	
 	
 			this.features.push( clonedFeature );
 		},
@@ -552,7 +570,8 @@
 	}
 	
 	function Tile__constrainLine ( tile, line ) {
-		var result = [],
+		var allLines = [],
+			currentLine = [],
 			lastPoint,
 			lastPointWasContained;
 	
@@ -563,15 +582,20 @@
 	
 			if ( pointIsContained ) {
 				if ( !!lastPoint && !lastPointWasContained ) {
-					result.push( tile._findIntersection( point, lastPoint ).point );
+					currentLine.push( tile._findIntersection( point, lastPoint ).point );
 				}
 	
-				result.push( point );
+				currentLine.push( point );
 			}
 	
 			else {
 				if ( !!lastPoint && lastPointWasContained ) {
-					result.push( tile._findIntersection( point, lastPoint ).point );
+					currentLine.push( tile._findIntersection( point, lastPoint ).point );
+				}
+	
+				if ( currentLine.length ) {
+					allLines.push( currentLine );
+					currentLine = [];
 				}
 			}
 	
@@ -579,8 +603,12 @@
 			lastPointWasContained = pointIsContained;
 		});
 	
-		if ( result.length ) {
-			return result;
+		if ( currentLine.length ) {
+			allLines.push( currentLine );
+		}
+	
+		if ( allLines.length ) {
+			return allLines;
 		}
 	}
 	
