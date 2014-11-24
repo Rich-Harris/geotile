@@ -423,6 +423,9 @@
 		}
 	
 		if ( !arcs.length ) {
+			// it's possible that the tile is fully enclosed...
+	
+	
 			return;
 		}
 	
@@ -430,20 +433,25 @@
 		lastArc = arcs[ arcs.length - 1 ];
 	
 		// join first and last arc, if applicable
-		if ( constrainPolygon__pointsCoincide( firstArc.firstPoint(), lastArc.lastPoint() ) ) {
+		if ( firstArc !== lastArc && constrainPolygon__pointsCoincide( firstArc.firstPoint(), lastArc.lastPoint() ) ) {
 			lastArc.points.pop();
 			firstArc.join( lastArc );
 			arcs.pop();
 		}
-	
-		//arcs.forEach( a => console.log( 'arc', a ) );
 	
 		// take each arc in turn, and find the entry point closest to
 		// the exit point, following the winding order of the polygon
 		// as a whole
 		i = arcs.length;
 		while ( i-- ) {
-			connectArc( arcs[i] );
+			arc = arcs[i];
+	
+			if ( arc.isClosed() ) {
+				rings.push( arc );
+			} else {
+				connectArc( arcs[i] );
+			}
+	
 			arcs.pop();
 		}
 	

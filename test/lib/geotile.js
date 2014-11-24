@@ -419,19 +419,10 @@
 		});
 	
 		if ( arc.hasPoints() ) {
-			if ( arc.isClosed() ) {
-				console.log( 'is closed' );
-				rings.push( arc );
-			} else {
-				arcs.push( arc );
-			}
+			arcs.push( arc );
 		}
 	
 		if ( !arcs.length ) {
-			if ( rings.length ) {
-				return rings;
-			}
-	
 			// it's possible that the tile is fully enclosed...
 	
 	
@@ -442,7 +433,7 @@
 		lastArc = arcs[ arcs.length - 1 ];
 	
 		// join first and last arc, if applicable
-		if ( constrainPolygon__pointsCoincide( firstArc.firstPoint(), lastArc.lastPoint() ) ) {
+		if ( firstArc !== lastArc && constrainPolygon__pointsCoincide( firstArc.firstPoint(), lastArc.lastPoint() ) ) {
 			lastArc.points.pop();
 			firstArc.join( lastArc );
 			arcs.pop();
@@ -453,7 +444,14 @@
 		// as a whole
 		i = arcs.length;
 		while ( i-- ) {
-			connectArc( arcs[i] );
+			arc = arcs[i];
+	
+			if ( arc.isClosed() ) {
+				rings.push( arc );
+			} else {
+				connectArc( arcs[i] );
+			}
+	
 			arcs.pop();
 		}
 	
