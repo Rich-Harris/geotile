@@ -419,10 +419,22 @@
 		});
 	
 		if ( arc.hasPoints() ) {
-			arcs.push( arc );
+			if ( arc.isClosed() ) {
+				console.log( 'is closed' );
+				rings.push( arc );
+			} else {
+				arcs.push( arc );
+			}
 		}
 	
 		if ( !arcs.length ) {
+			if ( rings.length ) {
+				return rings;
+			}
+	
+			// it's possible that the tile is fully enclosed...
+	
+	
 			return;
 		}
 	
@@ -435,8 +447,6 @@
 			firstArc.join( lastArc );
 			arcs.pop();
 		}
-	
-		//arcs.forEach( a => console.log( 'arc', a ) );
 	
 		// take each arc in turn, and find the entry point closest to
 		// the exit point, following the winding order of the polygon

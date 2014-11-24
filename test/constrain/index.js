@@ -219,6 +219,45 @@ module.exports = function () {
 			]);
 		});
 
+		it( 'constrains a MultiPolygon that has a ring fully inside the tile', function () {
+			var source, region, expected;
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'MultiPolygon',
+					coordinates: [
+						[
+							[
+								[ 2, 2 ], [ 2, 8 ], [ 8, 8 ], [ 8, 2 ], [ 2, 2 ]
+							]
+						],
+						[
+							[
+								[ 12, 2 ], [ 12, 8 ], [ 18, 8 ], [ 18, 2 ], [ 12, 2 ]
+							]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ 2, 2 ], [ 2, 8 ], [ 8, 8 ], [ 8, 2 ], [ 2, 2 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
 		it( 'constrains a LineString', function () {
 			var source, region, expected;
 
