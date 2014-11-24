@@ -32,7 +32,6 @@
 				bbox[3] = Math.max( bbox[3], childBbox[3] );
 			});
 	
-			console.log( 'bbox', bbox );
 			return feature.bbox = bbox;
 		},
 	
@@ -123,6 +122,38 @@
 	function findBoundingBox__initialBbox () {
 		return [ Infinity, Infinity, -Infinity, -Infinity ];
 	}
+
+	var Line__Line = function ( pointA, pointB ) {
+		this.pointA = pointA;
+		this.pointB = pointB;
+	
+		this.gradient = ( pointB[1] - pointA[1] ) / ( pointB[0] - pointA[0] );
+	
+		this.xMin = Math.min( pointA[0], pointB[0] );
+		this.xMax = Math.max( pointA[0], pointB[0] );
+		this.yMin = Math.min( pointA[1], pointB[1] );
+		this.yMax = Math.max( pointA[1], pointB[1] );
+	};
+	
+	Line__Line.prototype = {
+		getX: function ( y ) {
+			if ( y < this.yMin || y > this.yMax ) {
+				return null;
+			}
+	
+			return this.pointA[0] + ( ( y - this.pointA[1] ) / this.gradient );
+		},
+	
+		getY: function ( x ) {
+			if ( x < this.xMin || x > this.xMax ) {
+				return null;
+			}
+	
+			return this.pointA[1] + ( ( x - this.pointA[0] ) * this.gradient );
+		}
+	};
+	
+	var Line__default = Line__Line;
 
 	function deepClone__deepClone ( obj, blacklist ) {
 		var key, i, clone;
@@ -218,7 +249,8 @@
 		},
 	
 		containsHole: function ( hole ) {
-			throw new Error( 'TODO' );
+			console.error( 'TODO' );
+			return false;
 		},
 	
 		entersAt: function ( intersection ) {
@@ -279,6 +311,8 @@
 			constrainedHoles = constrainPolygon__constrainRing( tile, hole, true );
 	
 			if ( constrainedHoles ) {
+				// TODO where polygon and hole share an edge, subtract
+				// hole from ring rather than adding as a hole
 				constrainedHoles.forEach( findOuterRing );
 			}
 	
@@ -321,13 +355,13 @@
 	
 		// Find all arcs inside the tile
 		ring.forEach( function ( point ) {
-			var pointIsContained, intersection;
+			var pointIsContained, intersection, intersections;
 	
 			pointIsContained = tile.contains( point );
 	
 			if ( pointIsContained ) {
 				if ( !!lastPoint && !lastPointWasContained ) {
-					intersection = tile._findIntersection( point, lastPoint );
+					intersection = tile._findIntersection( lastPoint, point );
 					arc.entersAt( intersection );
 				}
 	
@@ -335,12 +369,32 @@
 			}
 	
 			else {
-				if ( !!lastPoint && lastPointWasContained ) {
-					arc.exitsAt( tile._findIntersection( point, lastPoint ) );
+				if ( !!lastPoint ) {
+					if ( lastPointWasContained ) {
+						arc.exitsAt( tile._findIntersection( lastPoint, point ) );
 	
-					if ( arc.hasPoints() ) {
-						arcs.push( arc );
-						arc = new constrainPolygon__Arc();
+						if ( arc.hasPoints() ) {
+							arcs.push( arc );
+							arc = new constrainPolygon__Arc();
+						}
+					}
+	
+					else {
+						// neither point was contained - but theoretically, the line
+						// could still have crossed the tile, intersecting twice
+						intersections = tile._findAllIntersections( lastPoint, point );
+	
+						if ( intersections.length ) {
+							if ( intersections.length !== 2 ) {
+								throw new Error( 'Unexpected number of intersections (' + intersections.length + ')' );
+							}
+	
+							arc.entersAt( intersections[0] );
+							arc.exitsAt( intersections[1] );
+							arcs.push( arc );
+	
+							arc = new constrainPolygon__Arc();
+						}
 					}
 				}
 			}
@@ -366,6 +420,8 @@
 			firstArc.join( lastArc );
 			arcs.pop();
 		}
+	
+		//arcs.forEach( a => console.log( 'arc', a ) );
 	
 		// take each arc in turn, and find the entry point closest to
 		// the exit point, following the winding order of the polygon
@@ -410,7 +466,7 @@
 	
 						if ( d > 0 && d < min ) {
 							closestEntry = candidate;
-							break;
+							min = d;
 						}
 					}
 				}
@@ -646,18 +702,28 @@
 		},
 	
 		_addMultiPolygon: function ( feature ) {
-			var self = this, multiPolygon, clonedFeature;
+			var self = this, multiPolygon = [], clonedFeature;
 	
-			multiPolygon = feature.geometry.coordinates.map( function ( polygon ) {
-				return constrainPolygon__default( self, polygon );
-			}).filter( Boolean );
+			feature.geometry.coordinates.map( function ( polygon ) {
+				var polygons = constrainPolygon__default( self, polygon );
+	
+				if ( polygons ) {
+					multiPolygon.push.apply( multiPolygon, polygons );
+				}
+			});
 	
 			if ( !multiPolygon.length ) {
 				return;
 			}
 	
 			clonedFeature = deepClone__default( feature, [ 'coordinates' ]);
-			clonedFeature.geometry.coordinates = multiPolygon;
+	
+			if ( multiPolygon.length === 1 ) {
+				clonedFeature.geometry.type = 'Polygon';
+				clonedFeature.geometry.coordinates = multiPolygon[0];
+			} else {
+				clonedFeature.geometry.coordinates = multiPolygon;
+			}
 	
 			this.features.push( clonedFeature );
 		},
@@ -683,59 +749,42 @@
 			this.features.push( clonedFeature );
 		},
 	
+		_findAllIntersections: function ( a, b ) {var this$0 = this;
+			var line, intersections;
+	
+			line = new Line__default( a, b );
+			intersections = [];
+	
+			[ 'north', 'south' ].forEach( function(northing ) {
+				var easting = line.getX( this$0[ northing ] );
+	
+				if ( easting !== null && easting >= this$0.west && easting <= this$0.east ) {
+					intersections.push({
+						edge: northing,
+						point: [ easting, this$0[ northing ] ]
+					});
+				}
+			});
+	
+			[ 'east', 'west' ].forEach( function(easting ) {
+				var northing = line.getY( this$0[ easting ] );
+	
+				if ( northing !== null && northing >= this$0.south && northing <= this$0.north ) {
+					intersections.push({
+						edge: easting,
+						point: [ this$0[ easting ], northing ]
+					});
+				}
+			});
+	
+			return intersections.sort( function ( iA, iB ) {
+				return ( iA.point[0] - iB.point[0] ) * b[0] - a[0] ||
+				       ( iA.point[1] - iB.point[1] ) * b[1] - a[1];
+			});
+		},
+	
 		_findIntersection: function ( a, b ) {
-			var gradient;
-	
-			gradient = ( b[1] - a[1] ) / ( b[0] - a[0] );
-	
-			// does it cross the northern boundary between the east and west boundaries?
-			if ( a[1] <= this.north && b[1] >= this.north || a[1] >= this.north && b[1] <= this.north ) {
-				var northernCrossingEasting = a[0] + ( ( this.north - a[1] ) / gradient );
-	
-				if ( northernCrossingEasting >= this.west && northernCrossingEasting <= this.east ) {
-					//console.log( 'crosses northern boundary (%s) at', this.north, northernCrossingEasting, a, b );
-					return {
-						edge: 'north',
-						point: [ northernCrossingEasting, this.north ]
-					};
-				}
-			}
-	
-			if ( a[1] <= this.south && b[1] >= this.south || a[1] >= this.south && b[1] <= this.south ) {
-				var southernCrossingEasting = a[0] + ( ( this.south - a[1] ) / gradient );
-	
-				if ( southernCrossingEasting >= this.west && southernCrossingEasting <= this.east ) {
-					//console.log( 'crosses southern boundary (%s) at', this.north, southernCrossingEasting, a, b );
-					return {
-						edge: 'south',
-						point: [ southernCrossingEasting, this.south ]
-					};
-				}
-			}
-	
-			if ( a[0] <= this.west && b[0] >= this.west || a[0] >= this.west && b[0] <= this.west ) {
-				var westernCrossingNorthing = a[1] + ( ( this.west - a[0] ) * gradient );
-	
-				if ( westernCrossingNorthing >= this.south && westernCrossingNorthing <= this.north ) {
-					//console.log( 'crosses western boundary (%s) at', this.west, westernCrossingNorthing, a, b );
-					return {
-						edge: 'west',
-						point: [ this.west, westernCrossingNorthing ]
-					};
-				}
-			}
-	
-			if ( a[0] <= this.east && b[0] >= this.east || a[0] >= this.east && b[0] <= this.east ) {
-				var easternCrossingNorthing = a[1] + ( ( this.east - a[0] ) * gradient );
-	
-				if ( easternCrossingNorthing >= this.south && easternCrossingNorthing <= this.north ) {
-					//console.log( 'crosses eastern boundary (%s) at', this.east, easternCrossingNorthing, a, b );
-					return {
-						edge: 'east',
-						point: [ this.east, easternCrossingNorthing ]
-					};
-				}
-			}
+			return this._findAllIntersections( a, b )[0];
 		}
 	};
 	
@@ -803,8 +852,6 @@
 						south: lat,
 						north: lat + tileHeight
 					};
-	
-					console.log( 'bounds', bounds );
 	
 					tile = new Tile__default( bounds );
 					tile.addFeature( this.data );

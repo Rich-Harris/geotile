@@ -5,13 +5,13 @@ var assert = require( 'assert' ),
 
 module.exports = function () {
 	describe( 'geotile( data ).constrain()', function () {
-		var polygonA, polygonB, pointA, pointB, line;
-
-		polygonA = require( '../samples/polygonA.json' );
-		polygonB = require( '../samples/polygonB.json' );
-		pointA = require( '../samples/pointA.json' );
-		pointB = require( '../samples/pointB.json' );
-		line = require( '../samples/line.json' );
+		var polygonA = require( '../samples/polygonA.json' ),
+			polygonB = require( '../samples/polygonB.json' ),
+			polygonC = require( '../samples/polygonC.json' ),
+			polygonD = require( '../samples/polygonD.json' ),
+			pointA = require( '../samples/pointA.json' ),
+			pointB = require( '../samples/pointB.json' ),
+			line = require( '../samples/line.json' );
 
 		before( function () {
 			return require( '../utils/build' )().then( function ( lib ) {
@@ -82,6 +82,61 @@ module.exports = function () {
 
 					[
 						[ [ 6, 4 ], [ 10, 4 ], [ 10, 2 ], [ 6, 2 ], [ 6, 4 ] ]
+					]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'constrains a Polygon with lines that cross the tile', function () {
+			var source, region, expected;
+
+			source = geotile( polygonC );
+
+			region = source.constrain({
+				north: 20,
+				east: 20,
+				south: 10,
+				west: 10
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ 10, 12 ], [ 12, 12 ], [ 12, 14 ], [ 10, 14 ], [ 10, 16 ], [ 20, 16 ], [ 20, 10 ], [ 10, 10 ], [ 10, 12 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'constrains a Polygon with a weird shape', function () {
+			var source, region, expected;
+
+			source = geotile( polygonD );
+
+			region = source.constrain({
+				north: 40,
+				east: 30,
+				south: 30,
+				west: 20
+			}).toJSON();
+
+			expected = {
+				type: 'MultiPolygon',
+				coordinates: [
+					[
+						[ [ 20, 32 ], [ 22, 32 ], [ 22, 34 ], [ 20, 34 ], [ 20, 36 ], [ 30, 36 ], [ 30, 30 ], [ 20, 30 ], [ 20, 32 ] ]
+					],
+					[
+						[ [ 20, 40 ], [ 22, 40 ], [ 22, 38 ], [ 20, 38 ], [ 20, 40 ] ]
+					],
+					[
+						[ [ 24, 40 ], [ 26, 40 ], [ 26, 38 ], [ 24, 38 ], [ 24, 40 ] ]
+					],
+					[
+						[ [ 28, 40 ], [ 30, 40 ], [ 30, 38 ], [ 28, 38 ], [ 28, 40 ] ]
 					]
 				]
 			}
