@@ -258,6 +258,42 @@ module.exports = function () {
 			compareGeometry( region.features[0].geometry, expected );
 		});
 
+		it( 'constrains a polygon that fully encloses a tile', function () {
+			var source, region, expected;
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [
+						[
+							[ -5, -5 ], [ -5, 15 ], [ 15, 15 ], [ 15, -5 ], [ -5, -5 ]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ 0, 0 ], [ 0, 10 ], [ 10, 10 ], [ 10, 0 ], [ 0, 0 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'constrains geometry at the South Pole', function () {
+			//assert.ok( false );
+		});
+
 		it( 'constrains a LineString', function () {
 			var source, region, expected;
 

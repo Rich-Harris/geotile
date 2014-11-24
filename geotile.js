@@ -247,6 +247,16 @@
 
 	var constrainPolygon__remaining = 20;
 	
+	var constrainPolygon__NORTH = 9,
+		constrainPolygon__SOUTH = 6,
+		constrainPolygon__WEST = 12,
+		constrainPolygon__EAST = 3,
+		constrainPolygon__NORTH_EAST = constrainPolygon__NORTH & constrainPolygon__EAST,
+		constrainPolygon__NORTH_WEST = constrainPolygon__NORTH & constrainPolygon__WEST,
+		constrainPolygon__SOUTH_EAST = constrainPolygon__SOUTH & constrainPolygon__EAST,
+		constrainPolygon__SOUTH_WEST = constrainPolygon__SOUTH & constrainPolygon__WEST,
+		constrainPolygon__ALL_QUADRANTS = constrainPolygon__NORTH | constrainPolygon__SOUTH | constrainPolygon__EAST | constrainPolygon__WEST;
+	
 	var constrainPolygon__Arc = function () {
 		this.points = [];
 		this.holes = [];
@@ -260,6 +270,7 @@
 	
 		addPoint: function ( point ) {
 			this.points.push( point );
+			return this;
 		},
 	
 		containsHole: function ( hole ) {
@@ -365,15 +376,20 @@
 			corner,
 			closestEntry,
 			index,
-			direction;
+			direction,
+			trackQuadrants = true,
+			lastQuadrant = 0,
+			visitedQuadrants = 0;
 	
 		// Find all arcs inside the tile
 		ring.forEach( function ( point ) {
-			var pointIsContained, intersection, intersections;
+			var pointIsContained, intersection, intersections, quadrant, bearing, travellingClockwise;
 	
 			pointIsContained = tile.contains( point );
 	
 			if ( pointIsContained ) {
+				trackQuadrants = false;
+	
 				if ( !!lastPoint && !lastPointWasContained ) {
 					intersection = tile._findIntersection( lastPoint, point );
 					arc.entersAt( intersection );
@@ -412,6 +428,27 @@
 						}
 					}
 				}
+	
+				if ( trackQuadrants ) {
+					bearing = constrainPolygon__getBearing([ tile.lon, tile.lat ], point );
+	
+					// this algorithm discounts the possibility that a line could cross
+					// two quadrants in a single bound
+					//quadrant = ( point[0] < tile.lon ? WEST : EAST ) & ( point[1] < tile.lat ? SOUTH : NORTH );
+					quadrant = ( bearing < 0 ? constrainPolygon__WEST : constrainPolygon__EAST ) & ( Math.abs( bearing ) > Math.PI / 2 ? constrainPolygon__SOUTH : constrainPolygon__NORTH );
+	
+					if ( quadrant !== lastQuadrant ) {
+						travellingClockwise = ( quadrant > lastQuadrant ) || ( lastQuadrant === constrainPolygon__NORTH_WEST && quadrant === constrainPolygon__NORTH_EAST );
+	
+						if ( ( !isHole && travellingClockwise ) || ( isHole && !travellingClockwise ) ) {
+							visitedQuadrants = visitedQuadrants | quadrant;
+						} else {
+							visitedQuadrants = visitedQuadrants & ~quadrant;
+						}
+					}
+	
+					lastQuadrant = quadrant;
+				}
 			}
 	
 			lastPoint = point;
@@ -424,7 +461,16 @@
 	
 		if ( !arcs.length ) {
 			// it's possible that the tile is fully enclosed...
+			if ( visitedQuadrants === constrainPolygon__ALL_QUADRANTS ) {
+				arc
+				.addPoint([ tile.west, tile.south ])
+				.addPoint([ tile.west, tile.north ])
+				.addPoint([ tile.east, tile.north ])
+				.addPoint([ tile.east, tile.south ])
+				.addPoint([ tile.west, tile.south ]);
 	
+				return [ arc ];
+			}
 	
 			return;
 		}
@@ -588,6 +634,27 @@
 	
 		return corner;
 	}
+	
+	// φ/λ for latitude/longitude in radians
+	
+	var constrainPolygon__d2r = Math.PI / 180;
+	
+	function constrainPolygon__getBearing ( from, to ) {
+		var fromLon = from[0] * constrainPolygon__d2r,
+			toLon = to[0] * constrainPolygon__d2r,
+			fromLat = from[1] * constrainPolygon__d2r,
+			toLat = to[1] * constrainPolygon__d2r,
+	
+			x,
+			y,
+			bearing;
+	
+		y = Math.sin( toLon - fromLon ) * Math.cos( toLat );
+		x = Math.cos( fromLat ) * Math.sin( toLat ) -
+	        Math.sin( fromLat ) * Math.cos( toLat )*Math.cos( toLon - fromLon );
+	
+		return Math.atan2( y, x );
+	}
 
 	var Tile__Tile = function ( options ) {
 		this.north = options.north;
@@ -597,6 +664,7 @@
 	
 		this.width = this.east - this.west;
 		this.lon = ( this.east + this.west ) / 2;
+		this.lat = ( this.north + this.south ) / 2;
 	
 		this.features = [];
 	
