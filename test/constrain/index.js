@@ -9,6 +9,7 @@ module.exports = function () {
 			polygonB = require( '../samples/polygonB.json' ),
 			polygonC = require( '../samples/polygonC.json' ),
 			polygonD = require( '../samples/polygonD.json' ),
+			polygonE = require( '../samples/polygonE.json' ),
 			pointA = require( '../samples/pointA.json' ),
 			pointB = require( '../samples/pointB.json' ),
 			line = require( '../samples/line.json' );
@@ -142,6 +143,80 @@ module.exports = function () {
 			}
 
 			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'constrains a Polygon that crosses the [ante-]meridian', function () {
+			var anteMeridianCrosser, meridianCrosser, source, region, expected;
+
+			anteMeridianCrosser = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [[
+						[ 178, 14 ],
+						[ 178, 16 ],
+						[ -178, 16 ],
+						[ -178, 14 ],
+						[ 178, 14 ]
+					]]
+				}
+			});
+
+			meridianCrosser = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [[
+						[ -2, 14 ],
+						[ -2, 16 ],
+						[ 2, 16 ],
+						[ 2, 14 ],
+						[ -2, 14 ]
+					]]
+				}
+			});
+
+			function compare ( source, bounds, expectedCoords ) {
+				var region = source.constrain({
+					north: 20,
+					south: 10,
+					west: bounds.west,
+					east: bounds.east
+				}).toJSON();
+
+				compareGeometry( region.features[0].geometry, {
+					type: 'Polygon',
+					coordinates: expectedCoords
+				});
+			}
+
+			compare( anteMeridianCrosser, {
+				east: -170,
+				west: -180
+			}, [
+				[ [ -180, 14 ], [ -180, 16 ], [ -178, 16 ], [ -178, 14 ], [ -180, 14 ] ]
+			]);
+
+			compare( anteMeridianCrosser, {
+				east: 180,
+				west: 170
+			}, [
+				[ [ 178, 14 ], [ 178, 16 ], [ 180, 16 ], [ 180, 14 ], [ 178, 14 ] ]
+			]);
+
+			compare( meridianCrosser, {
+				west: 0,
+				east: 10
+			}, [
+				[ [ 0, 14 ], [ 0, 16 ], [ 2, 16 ], [ 2, 14 ], [ 0, 14 ] ]
+			]);
+
+			compare( meridianCrosser, {
+				west: -10,
+				east: 0
+			}, [
+				[ [ -2, 14 ], [ -2, 16 ], [ 0, 16 ], [ 0, 14 ], [ -2, 14 ] ]
+			]);
 		});
 
 		it( 'constrains a LineString', function () {

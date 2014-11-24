@@ -124,10 +124,18 @@
 	}
 
 	var Line__Line = function ( pointA, pointB ) {
+		var dx, dy;
+	
 		this.pointA = pointA;
 		this.pointB = pointB;
 	
-		this.gradient = ( pointB[1] - pointA[1] ) / ( pointB[0] - pointA[0] );
+		dx = pointB[0] - pointA[0];
+		dy = pointB[1] - pointA[1];
+	
+		this.vertical = !dx;
+		this.horizontal = !dy;
+	
+		this.gradient = dy / dx;
 	
 		this.xMin = Math.min( pointA[0], pointB[0] );
 		this.xMax = Math.max( pointA[0], pointB[0] );
@@ -137,19 +145,25 @@
 	
 	Line__Line.prototype = {
 		getX: function ( y ) {
-			if ( y < this.yMin || y > this.yMax ) {
+			var x;
+	
+			if ( y < this.yMin || y > this.yMax || this.horizontal ) {
 				return null;
 			}
 	
-			return this.pointA[0] + ( ( y - this.pointA[1] ) / this.gradient );
+			x = this.pointA[0] + ( ( y - this.pointA[1] ) / this.gradient );
+			return x;
 		},
 	
 		getY: function ( x ) {
-			if ( x < this.xMin || x > this.xMax ) {
+			var y;
+	
+			if ( x < this.xMin || x > this.xMax || this.vertical ) {
 				return null;
 			}
 	
-			return this.pointA[1] + ( ( x - this.pointA[0] ) * this.gradient );
+			y = this.pointA[1] + ( ( x - this.pointA[0] ) * this.gradient );
+			return y;
 		}
 	};
 	
@@ -371,7 +385,8 @@
 			else {
 				if ( !!lastPoint ) {
 					if ( lastPointWasContained ) {
-						arc.exitsAt( tile._findIntersection( lastPoint, point ) );
+						intersection = tile._findIntersection( lastPoint, point );
+						arc.exitsAt( intersection );
 	
 						if ( arc.hasPoints() ) {
 							arcs.push( arc );
@@ -625,9 +640,9 @@
 		},
 	
 		contains: function ( point ) {
-			return point[0] >= this.west &&
+			return point[0] > this.west &&
 				   point[0] <= this.east &&
-				   point[1] >= this.south &&
+				   point[1] > this.south &&
 				   point[1] <= this.north;
 		},
 	
@@ -751,6 +766,18 @@
 	
 		_findAllIntersections: function ( a, b ) {var this$0 = this;
 			var line, intersections;
+	
+			// if the line crosses the ante-meridian, we want to put the coords in
+			// the same frame of reference as the tile
+			if ( ( a[0] > 90 && b[0] < -90 ) || ( a[0] < -90 && b[0] > 90 ) ) {
+				if ( this.west < 0 ) {
+					while ( a[0] > 0 ) a = [ a[0] - 360, a[1] ];
+					while ( b[0] > 0 ) b = [ b[0] - 360, b[1] ];
+				} else {
+					while ( a[0] < 0 ) a = [ a[0] + 360, a[1] ];
+					while ( b[0] < 0 ) b = [ b[0] + 360, b[1] ];
+				}
+			}
 	
 			line = new Line__default( a, b );
 			intersections = [];

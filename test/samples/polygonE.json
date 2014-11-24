@@ -1,0 +1,14 @@
+{
+	"type": "Feature",
+	"properties": {},
+	"geometry": {
+		"type": "Polygon",
+		"coordinates": [[
+			[ 178, 14 ],
+			[ 178, 16 ],
+			[ -178, 16 ],
+			[ -178, 14 ],
+			[ 178, 14 ]
+		]]
+	}
+}
