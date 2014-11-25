@@ -438,12 +438,12 @@
 					quadrant = ( bearing < 0 ? constrainPolygon__WEST : constrainPolygon__EAST ) & ( Math.abs( bearing ) > Math.PI / 2 ? constrainPolygon__SOUTH : constrainPolygon__NORTH );
 	
 					if ( quadrant !== lastQuadrant ) {
-						travellingClockwise = ( quadrant > lastQuadrant ) || ( lastQuadrant === constrainPolygon__NORTH_WEST && quadrant === constrainPolygon__NORTH_EAST );
+						travellingClockwise = ( quadrant > lastQuadrant && ( lastQuadrant !== constrainPolygon__NORTH_EAST || quadrant !== constrainPolygon__NORTH_WEST ) ) || ( lastQuadrant === constrainPolygon__NORTH_WEST && quadrant === constrainPolygon__NORTH_EAST );
 	
 						if ( ( !isHole && travellingClockwise ) || ( isHole && !travellingClockwise ) ) {
 							visitedQuadrants = visitedQuadrants | quadrant;
 						} else {
-							visitedQuadrants = visitedQuadrants & ~quadrant;
+							visitedQuadrants = visitedQuadrants & ~lastQuadrant;
 						}
 					}
 	
@@ -936,10 +936,10 @@
 	
 			options = options || {};
 	
-			north = options.north || 90;
-			south = options.south || -90;
-			east  = options.east  || 180;
-			west  = options.west  || -180;
+			north = 'north' in options ? options.north : 90;
+			south = 'south' in options ? options.south : -90;
+			east  = 'east'  in options ? options.east  : 180;
+			west  = 'west'  in options ? options.west  : -180;
 	
 			horizontalDivisions = options.horizontalDivisions || 36;
 			verticalDivisions = options.verticalDivisions || 18;

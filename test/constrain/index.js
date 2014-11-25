@@ -285,7 +285,7 @@ module.exports = function () {
 				coordinates: [
 					[ [ 0, 0 ], [ 0, 10 ], [ 10, 10 ], [ 10, 0 ], [ 0, 0 ] ]
 				]
-			}
+			};
 
 			compareGeometry( region.features[0].geometry, expected );
 		});
