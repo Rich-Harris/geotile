@@ -1,0 +1,23 @@
+<div class='modal-background'>
+	<div class='modal'>
+		{{yield}}
+	</div>
+</div>
+
+<style>
+	.modal-background {
+		position: fixed;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		background-color: rgba(0,0,0,0.4);
+	}
+
+	.modal {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%,-50%);
+	}
+</style>

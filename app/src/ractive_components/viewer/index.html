@@ -1,0 +1,82 @@
+<svg viewBox='0 0 1000 1000'>
+	<!-- graticules -->
+	<path class='graticule' d='{{project(graticule)}}'/>
+
+	{{#each features}}
+		{{>feature}}
+	{{/each}}
+</svg>
+
+<!-- {{>feature}} -->
+	{{#if type === 'FeatureCollection'}}
+		<g class='FeatureCollection'>
+			{{#each features}}
+				{{>feature}}
+			{{/each}}
+		</g>
+	{{/if}}
+
+	{{#if type === 'GeometryCollection'}}
+		<g class='GeometryCollection'>
+			{{#each geometries}}
+				{{>geometry this}}
+			{{/each}}
+		</g>
+	{{/if}}
+
+	{{#if type === 'Feature'}}
+		{{>geometry geometry}}
+	{{/if}}
+<!-- {{/feature}} -->
+
+<!-- {{>geometry}} -->
+	<path class='{{type}}' d='{{project(this)}}'/>
+<!-- {{/geometry}} -->
+
+
+<style>
+	svg {
+		width: 100%;
+		height: 100%;
+	}
+
+	.graticule {
+		stroke: rgba(0,0,0,0.1);
+	}
+
+	.Polygon, .MultiPolygon {
+		fill: rgba(0,0,0,0.1);
+		stroke: rgba(0,0,0,0.3);
+	}
+
+	.LineString, .MultiLineString {
+		fill: none;
+		stroke: rgba(0,0,0,0.3);
+	}
+</style>
+
+
+<script>
+	var d3 = window.d3;
+
+
+
+	component.exports = {
+		oninit: function () {
+
+		},
+
+		data: {
+			path: (function () {
+				var projection = d3.geo.mercator().translate([ 500, 500 ]).scale( 500 / Math.PI );
+				return d3.geo.path().projection( projection );
+			}()),
+
+			project: function ( geometry ) {
+				return this.get( 'path' )( geometry );
+			},
+
+			graticule: d3.geo.graticule()()
+		}
+	};
+</script>

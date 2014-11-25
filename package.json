@@ -9,10 +9,12 @@
     "gobble": "^0.6.10",
     "gobble-es6-transpiler": "^0.1.0",
     "gobble-esperanto-bundle": "^0.1.0",
+    "gobble-ractive": "^0.1.1",
+    "gobble-sass": "^0.3.1",
     "sander": "^0.2.1"
   },
   "scripts": {
-  	"build": "set -e; mocha; cp test/lib/geotile.js geotile.js",
-  	"prepublish": "npm run build"
+    "build": "set -e; mocha; cp test/lib/geotile.js geotile.js",
+    "prepublish": "npm run build"
   }
 }
