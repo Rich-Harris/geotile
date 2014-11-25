@@ -285,9 +285,136 @@ module.exports = function () {
 				coordinates: [
 					[ [ 0, 0 ], [ 0, 10 ], [ 10, 10 ], [ 10, 0 ], [ 0, 0 ] ]
 				]
-			};
+			}
 
 			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'constrains a Polygon where a single arc crosses the tile', function () {
+			var source, region, expected;
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [
+						[
+							[ 7, -1 ], [ 11, 3 ], [ 11, -1 ], [ 7, -1 ]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ 8, 0 ], [ 10, 2 ], [ 10, 0 ], [ 8, 0 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [
+						[
+							[ -13, -1 ], [ -9, 3 ], [ -9, -1 ], [ -13, -1 ]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: 10,
+				east: -10,
+				south: 0,
+				west: -20
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ -12, 0 ], [ -10, 2 ], [ -10, 0 ], [ -12, 0 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [
+						[
+							[ -13, -21 ], [ -9, -17 ], [ -9, -21 ], [ -13, -21 ]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: -10,
+				east: -10,
+				south: -20,
+				west: -20
+			}).toJSON();
+
+			expected = {
+				type: 'Polygon',
+				coordinates: [
+					[ [ -12, -20 ], [ -10, -18 ], [ -10, -20 ], [ -12, -20 ] ]
+				]
+			}
+
+			compareGeometry( region.features[0].geometry, expected );
+		});
+
+		it( 'ignores geometry that wraps around a tile but does not cover/intersect it', function () {
+			var source, region, expected;
+
+			source = geotile({
+				type: 'Feature',
+				geometry: {
+					type: 'Polygon',
+					coordinates: [
+						[
+							[ 16, 22 ],
+							[ 8, 22 ],
+							[ 8, 8 ],
+							[ 22, 8 ],
+							[ 22, 26 ],
+							[ 14, 26 ],
+							[ 14, 28 ],
+							[ 24, 28 ],
+							[ 24, 6 ],
+							[ 6, 6 ],
+							[ 6, 24 ],
+							[ 16, 24 ],
+							[ 16, 22 ]
+						]
+					]
+				}
+			});
+
+			region = source.constrain({
+				north: 20,
+				east: 20,
+				south: 10,
+				west: 10
+			}).toJSON();
+
+			assert.equal( region.features.length, 0 );
 		});
 
 		it( 'constrains geometry at the South Pole', function () {

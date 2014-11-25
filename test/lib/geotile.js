@@ -129,8 +129,8 @@
 		this.pointA = pointA;
 		this.pointB = pointB;
 	
-		dx = pointB[0] - pointA[0];
-		dy = pointB[1] - pointA[1];
+		this.dx = dx = pointB[0] - pointA[0];
+		this.dy = dy = pointB[1] - pointA[1];
 	
 		this.vertical = !dx;
 		this.horizontal = !dy;
@@ -434,16 +434,15 @@
 	
 					// this algorithm discounts the possibility that a line could cross
 					// two quadrants in a single bound
-					//quadrant = ( point[0] < tile.lon ? WEST : EAST ) & ( point[1] < tile.lat ? SOUTH : NORTH );
 					quadrant = ( bearing < 0 ? constrainPolygon__WEST : constrainPolygon__EAST ) & ( Math.abs( bearing ) > Math.PI / 2 ? constrainPolygon__SOUTH : constrainPolygon__NORTH );
 	
-					if ( quadrant !== lastQuadrant ) {
+					if ( lastQuadrant && quadrant !== lastQuadrant ) {
 						travellingClockwise = ( quadrant > lastQuadrant && ( lastQuadrant !== constrainPolygon__NORTH_EAST || quadrant !== constrainPolygon__NORTH_WEST ) ) || ( lastQuadrant === constrainPolygon__NORTH_WEST && quadrant === constrainPolygon__NORTH_EAST );
 	
 						if ( ( !isHole && travellingClockwise ) || ( isHole && !travellingClockwise ) ) {
-							visitedQuadrants = visitedQuadrants | quadrant;
+							visitedQuadrants += quadrant;
 						} else {
-							visitedQuadrants = visitedQuadrants & ~lastQuadrant;
+							visitedQuadrants -= lastQuadrant;
 						}
 					}
 	
@@ -841,7 +840,7 @@
 		},
 	
 		_findAllIntersections: function ( a, b ) {var this$0 = this;
-			var line, intersections;
+			var self = this, line, intersections;
 	
 			// if the line crosses the ante-meridian, we want to put the coords in
 			// the same frame of reference as the tile
@@ -880,9 +879,14 @@
 				}
 			});
 	
-			return intersections.sort( function ( iA, iB ) {
-				return ( iA.point[0] - iB.point[0] ) * b[0] - a[0] ||
-				       ( iA.point[1] - iB.point[1] ) * b[1] - a[1];
+			return intersections.sort( function ( p, q ) {
+				var dx = q.point[0] - p.point[0],
+					dy = q.point[1] - p.point[1];
+	
+				// if line.dx is positive (b is east of a), then p
+				// should come first if q is east of p. mutatis
+				// mutandis for y
+				return ( -dx * line.dx ) || ( -dy * line.dy );
 			});
 		},
 	
