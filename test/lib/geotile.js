@@ -709,6 +709,10 @@
 					this._addLineString( feature );
 					break;
 	
+				case 'Point':
+					this._addPoint( feature );
+					break;
+	
 				default:
 					throw new Error( 'Unsupported feature type (' + feature.geometry.type + ')' );
 			}
@@ -837,6 +841,12 @@
 			}
 	
 			this.features.push( clonedFeature );
+		},
+	
+		_addPoint: function ( feature ) {
+			if ( this.contains( feature.geometry.coordinates ) ) {
+				this.features.push( deepClone__default( feature ) );
+			}
 		},
 	
 		_findAllIntersections: function ( a, b ) {var this$0 = this;
@@ -997,3 +1007,4 @@
 	return index__default;
 
 }));
+//# sourceMappingURL=./geotile.js.map

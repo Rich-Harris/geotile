@@ -474,5 +474,45 @@ module.exports = function () {
 			assert.equal( region.features[0].properties.name, 'Parallelogramistan' );
 			assert.equal( region.features[0].extra, 'data' );
 		});
+
+		it( 'constrains a Point', function () {
+			var point, source, region;
+
+			point = {
+				type: 'Feature',
+				geometry: {
+					type: 'Point',
+					coordinates: [ -5, -5 ]
+				}
+			};
+
+			source = geotile( point );
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			assert.equal( region.features.length, 0 );
+
+			point = {
+				type: 'Feature',
+				geometry: {
+					type: 'Point',
+					coordinates: [ 5, 5 ]
+				}
+			};
+
+			source = geotile( point );
+			region = source.constrain({
+				north: 10,
+				east: 10,
+				south: 0,
+				west: 0
+			}).toJSON();
+
+			assert.deepEqual( region.features[0].geometry, point.geometry );
+		});
 	});
 };
